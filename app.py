@@ -29,9 +29,10 @@ import concurrent.futures
 import requests
 from tor.tor import TorControl
 import tqdm
-
+from multiprocessing import cpu_count
 # from instagram_scraper.constants import *
 from constants import *
+from load import threading_data
 # python app.py nyc --tag -m 10 -d nyc_photos --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
 # python app.py nyc --tag -m 10 -d nyc_photos --media-metadata --media-types none --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
 # python app.py nyc --tag -m 10000 -d nyc_photos --media-metadata --media-types image --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
@@ -131,7 +132,7 @@ class InstagramScraper(object):
         self.posts = []
 
         self.torController = TorControl("127.0.0.1", 9150)
-        self.torController.authenticate("")
+        self.torController.authenticate("password")
 
         self.init_session()
         self.rhx_gis = ""
@@ -482,7 +483,7 @@ class InstagramScraper(object):
                 dst = self.get_dst_dir(value)
 
                 if self.include_location:
-                    media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=5)
+                    media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=cpu_count)
 
                 iter = 0
                 for item in tqdm.tqdm(media_generator(value), desc='Searching {0} for posts'.format(value), unit=" media",
@@ -584,7 +585,6 @@ class InstagramScraper(object):
         return None, None
 
     def _get_nodes(self, container):
-        from load import threading_data
         self.init_session()
         try:
             return threading_data(container['edges'], lambda x: self.augment_node(x['node']))
@@ -826,7 +826,7 @@ class InstagramScraper(object):
         username = user['username']
 
         if self.include_location:
-            media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=5)
+            media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=cpu_count())
 
         iter = 0
         for item in tqdm.tqdm(self.query_media_gen(user), desc='Searching {0} for posts'.format(username),
@@ -1040,7 +1040,9 @@ class InstagramScraper(object):
                                     if response.status_code == 403 and url != full_url:
                                         # see issue #254
                                         url = full_url
+                                        self.init_session()
                                         continue
+                                        # response.raise_for_status()
                                     if response.status_code == 429:
                                         self.init_session()
                                     response.raise_for_status()

@@ -1,3 +1,4 @@
+from multiprocessing import cpu_count
 BASE_URL = 'https://www.instagram.com/'
 LOGIN_URL = BASE_URL + 'accounts/login/ajax/'
 LOGOUT_URL = BASE_URL + 'accounts/logout/'
@@ -28,7 +29,7 @@ QUERY_LOCATION_VARS = '{{"id":"{0}","first":50,"after":"{1}"}}'
 QUERY_MEDIA = BASE_URL + 'graphql/query/?query_hash=42323d64886122307be10013ad2dcc44&variables={0}'
 QUERY_MEDIA_VARS = '{{"id":"{0}","first":50,"after":"{1}"}}'
 
-MAX_CONCURRENT_DOWNLOADS = 5
+MAX_CONCURRENT_DOWNLOADS = cpu_count()
 CONNECT_TIMEOUT = 90
 MAX_RETRIES = 5
 RETRY_DELAY = 5

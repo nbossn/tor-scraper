@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 
 def threading_data(data, fn, *args, **kwargs):
-    executor = ThreadPoolExecutor(max_workers=cpu_count() * 3)
+    executor = ThreadPoolExecutor(max_workers=cpu_count())
     futures = [executor.submit(fn, d, *args, **kwargs) for d in data]
     results = []
     for future in tqdm(futures):
