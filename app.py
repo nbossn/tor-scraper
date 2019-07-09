@@ -490,6 +490,7 @@ class InstagramScraper(object):
                                       disable=self.quiet):
                     if ((item['is_video'] is False and 'image' in self.media_types) or
                        (item['is_video'] is True and 'video' in self.media_types)) and self.is_new_media(item):
+                        # print("DOWNLOAD TASK")
                         future = executor.submit(self.worker_wrapper, self.download, item, dst)
                         future_to_item[future] = item
 
@@ -587,8 +588,12 @@ class InstagramScraper(object):
     def _get_nodes(self, container):
         self.init_session()
         try:
+            # print("QUERY BATCH")
             return threading_data(container['edges'], lambda x: self.augment_node(x['node']))
+        except (KeyboardInterrupt):
+            raise
         except:
+            self.logger.warning("Failed to get response for batch. Retrying...")
             return self._get_nodes(container)
 
     def augment_node(self, node):
@@ -637,7 +642,7 @@ class InstagramScraper(object):
                     self.logger.warning('Failed to get media details for resp ' + shortcode)
 
             else:
-                self.logger.warning('Failed to get media details for NO RESP ' + shortcode)
+                # self.logger.warning('Failed to get media details for NO RESP ' + shortcode)
                 # time.sleep(1)
                 # self.__get_media_details(shortcode)
                 return None
@@ -1040,9 +1045,9 @@ class InstagramScraper(object):
                                     if response.status_code == 403 and url != full_url:
                                         # see issue #254
                                         url = full_url
-                                        self.init_session()
+                                        # self.init_session()
                                         continue
-                                        # response.raise_for_status()
+                                    response.raise_for_status()
                                     if response.status_code == 429:
                                         self.init_session()
                                     response.raise_for_status()
@@ -1100,7 +1105,7 @@ class InstagramScraper(object):
                                     continue
                                 if retry < MAX_RETRIES:
                                     self.logger.warning('Retry after exception download {0} on {1}'.format(repr(e), media))
-                                    self.init_session()
+                                    # self.init_session()
                                     retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
                                     retry = 0
                                     continue
