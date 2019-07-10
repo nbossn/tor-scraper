@@ -33,7 +33,7 @@ from multiprocessing import cpu_count
 # from instagram_scraper.constants import *
 from constants import *
 from load import threading_data
-import subprocess
+
 # python app.py nyc --tag -m 10 -d nyc_photos --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
 # python app.py nyc --tag -m 10 -d nyc_photos --media-metadata --media-types none --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
 # python app.py nyc --tag -m 10000 -d nyc_photos --media-metadata --media-types image --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
@@ -233,14 +233,16 @@ class InstagramScraper(object):
                     # self.init_session()
                     # self.sleep(retry_delay)
                     retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
-                    retry = 0
+                    retry += 1
                     continue
                 else:
-                    keep_trying = self._retry_prompt(url, repr(e))
+                    keep_trying = False
+                    # keep_trying = self._retry_prompt(url, repr(e))
                     if keep_trying is True:
                         retry = 0
                         continue
                     elif keep_trying is False:
+                        print("I DIE IN SAFEGET")
                         return
                 raise
 
@@ -1113,6 +1115,7 @@ class InstagramScraper(object):
                                         retry = 0
                                         continue
                                     elif keep_trying is False:
+                                        print("I DIE IN DOWNLOAD")
                                         break
                                 raise
                     finally:
