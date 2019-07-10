@@ -33,6 +33,7 @@ from multiprocessing import cpu_count
 # from instagram_scraper.constants import *
 from constants import *
 from load import threading_data
+import subprocess
 # python app.py nyc --tag -m 10 -d nyc_photos --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
 # python app.py nyc --tag -m 10 -d nyc_photos --media-metadata --media-types none --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
 # python app.py nyc --tag -m 10000 -d nyc_photos --media-metadata --media-types image --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
@@ -64,7 +65,6 @@ class LockedStream(object):
 
 original_stdout, original_stderr = sys.stdout, sys.stderr
 sys.stdout, sys.stderr = map(LockedStream, (sys.stdout, sys.stderr))
-
 
 def threaded_input(prompt):
     with input_lock:
@@ -132,7 +132,7 @@ class InstagramScraper(object):
         self.posts = []
 
         self.torController = TorControl("127.0.0.1", 9150)
-        self.torController.authenticate("")
+        self.torController.authenticate("password")
 
         self.init_session()
         self.rhx_gis = ""
@@ -490,7 +490,6 @@ class InstagramScraper(object):
                                       disable=self.quiet):
                     if ((item['is_video'] is False and 'image' in self.media_types) or
                        (item['is_video'] is True and 'video' in self.media_types)) and self.is_new_media(item):
-                        # print("DOWNLOAD TASK")
                         future = executor.submit(self.worker_wrapper, self.download, item, dst)
                         future_to_item[future] = item
 
@@ -503,7 +502,9 @@ class InstagramScraper(object):
                     if self.media_metadata or self.comments or self.include_location:
                         self.posts.append(item)
 
-                    iter = iter + 1
+                    iter += 1
+                    if iter % 30 == 0:
+                        self.init_session()
                     if self.maximum != 0 and iter >= self.maximum:
                         break
 
@@ -550,9 +551,7 @@ class InstagramScraper(object):
                         break
                     for node in nodes:
                         yield node
-
                     if end_cursor:
-                        # self.init_session()
                         nodes, end_cursor = self.__query(url, variables, entity_name, query, end_cursor)
                     else:
                         return
@@ -573,11 +572,9 @@ class InstagramScraper(object):
                     if end_cursor == '':
 
                         top_posts = payload['edge_' + entity_name + '_to_top_posts']
-                        # self.init_session()
                         nodes.extend(self._get_nodes(top_posts))
 
                     posts = payload['edge_' + entity_name + '_to_media']
-                    # self.init_session()
                     nodes.extend(self._get_nodes(posts))
                     end_cursor = posts['page_info']['end_cursor']
                     return nodes, end_cursor
@@ -588,7 +585,6 @@ class InstagramScraper(object):
     def _get_nodes(self, container):
         self.init_session()
         try:
-            # print("QUERY BATCH")
             return threading_data(container['edges'], lambda x: self.augment_node(x['node']))
         except (KeyboardInterrupt):
             raise
@@ -1049,7 +1045,8 @@ class InstagramScraper(object):
                                         continue
                                     response.raise_for_status()
                                     if response.status_code == 429:
-                                        self.init_session()
+                                        # self.init_session()
+                                        pass
                                     response.raise_for_status()
 
                                     if response.status_code == 206:
@@ -1106,8 +1103,9 @@ class InstagramScraper(object):
                                 if retry < MAX_RETRIES:
                                     self.logger.warning('Retry after exception download {0} on {1}'.format(repr(e), media))
                                     # self.init_session()
-                                    retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
-                                    retry = 0
+                                    # self.sleep(retry_delay)
+                                    retry_delay = 0
+                                    retry += 1
                                     continue
                                 else:
                                     keep_trying = self._retry_prompt(media, repr(e))
