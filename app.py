@@ -511,7 +511,7 @@ class InstagramScraper(object):
                         break
 
                 if future_to_item:
-                    for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item),
+                    for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item,timeout=10.0),
                                             total=len(future_to_item),
                                             desc='Downloading', disable=self.quiet):
                         item = future_to_item[future]
@@ -1047,7 +1047,7 @@ class InstagramScraper(object):
                                         continue
                                     response.raise_for_status()
                                     if response.status_code == 429:
-                                        # self.init_session()
+                                        #self.init_session()
                                         pass
                                     response.raise_for_status()
 
