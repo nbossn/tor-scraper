@@ -233,13 +233,13 @@ class InstagramScraper(object):
                     # self.init_session()
                     # self.sleep(retry_delay)
                     retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
-                    retry += 1
+                    retry = 0
                     continue
                 else:
                     keep_trying = False
                     # keep_trying = self._retry_prompt(url, repr(e))
                     if keep_trying is True:
-                        retry = 0
+                        retry += 0
                         continue
                     elif keep_trying is False:
                         print("I DIE IN SAFEGET")
@@ -1107,7 +1107,7 @@ class InstagramScraper(object):
                                     # self.init_session()
                                     # self.sleep(retry_delay)
                                     retry_delay = 0
-                                    retry += 1
+                                    retry = 0
                                     continue
                                 else:
                                     keep_trying = self._retry_prompt(media, repr(e))
