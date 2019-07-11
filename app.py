@@ -132,7 +132,7 @@ class InstagramScraper(object):
         self.posts = []
 
         self.torController = TorControl("127.0.0.1", 9150)
-        self.torController.authenticate("password")
+        self.torController.authenticate("")
 
         self.init_session()
         self.rhx_gis = ""
