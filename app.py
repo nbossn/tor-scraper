@@ -212,8 +212,6 @@ class InstagramScraper(object):
                 if response.status_code == 404:
                     return
                 if response.status_code == 429:
-                    # self.init_session()
-                    # time.sleep(1)
                     return
                 response.raise_for_status()
                 content_length = response.headers.get('Content-Length')
@@ -230,10 +228,8 @@ class InstagramScraper(object):
                     url = args[0]
                 if retry < MAX_RETRIES:
                     self.logger.warning('Retry after exception safe get {0} on {1}'.format(repr(e), url))
-                    # self.init_session()
-                    # self.sleep(retry_delay)
                     retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
-                    retry = 0
+                    retry = 0  # retrying infinitely
                     continue
                 else:
                     keep_trying = self._retry_prompt(url, repr(e))
@@ -490,7 +486,6 @@ class InstagramScraper(object):
                                       disable=self.quiet):
                     if ((item['is_video'] is False and 'image' in self.media_types) or
                        (item['is_video'] is True and 'video' in self.media_types)) and self.is_new_media(item):
-                        # print("DOWNLOAD TASK")
                         future = executor.submit(self.worker_wrapper, self.download, item, dst)
                         future_to_item[future] = item
 
@@ -508,7 +503,7 @@ class InstagramScraper(object):
                         break
 
                 if future_to_item:
-                    for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item,timeout=3.0),
+                    for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item),
                                             total=len(future_to_item),
                                             desc='Downloading', disable=self.quiet):
                         item = future_to_item[future]
@@ -527,9 +522,11 @@ class InstagramScraper(object):
 
                 if (self.media_metadata or self.comments or self.include_location) and self.posts:
                     if self.latest:
-                        self.merge_json({'GraphImages': self.posts}, '{0}/{1}.json'.format(dst, value))
+                        self.merge_json({'GraphImages': self.posts},
+                                        '{0}/{1}.json'.format(dst, value))
                     else:
-                        self.save_json({'GraphImages': self.posts}, '{0}/{1}.json'.format(dst, value))
+                        self.save_json({'GraphImages': self.posts},
+                                       '{0}/{1}.json'.format(dst, value))
         finally:
             self.quit = True
 
@@ -552,8 +549,8 @@ class InstagramScraper(object):
                         yield node
 
                     if end_cursor:
-                        # self.init_session()
-                        nodes, end_cursor = self.__query(url, variables, entity_name, query, end_cursor)
+                        nodes, end_cursor = self.__query(url, variables, entity_name,
+                                                         query, end_cursor)
                     else:
                         return
             except ValueError:
@@ -573,11 +570,9 @@ class InstagramScraper(object):
                     if end_cursor == '':
 
                         top_posts = payload['edge_' + entity_name + '_to_top_posts']
-                        # self.init_session()
                         nodes.extend(self._get_nodes(top_posts))
 
                     posts = payload['edge_' + entity_name + '_to_media']
-                    # self.init_session()
                     nodes.extend(self._get_nodes(posts))
                     end_cursor = posts['page_info']['end_cursor']
                     return nodes, end_cursor
@@ -588,7 +583,6 @@ class InstagramScraper(object):
     def _get_nodes(self, container):
         self.init_session()
         try:
-            # print("QUERY BATCH")
             return threading_data(container['edges'], lambda x: self.augment_node(x['node']))
         except (KeyboardInterrupt):
             raise
@@ -643,8 +637,6 @@ class InstagramScraper(object):
 
             else:
                 # self.logger.warning('Failed to get media details for NO RESP ' + shortcode)
-                # time.sleep(1)
-                # self.__get_media_details(shortcode)
                 return None
         except:
             return None
@@ -806,10 +798,10 @@ class InstagramScraper(object):
         """Scrapes the user's stories."""
         if self.logged_in and \
                 ('story-image' in self.media_types or 'story-video' in self.media_types):
-            # Get the user's stories.
+            # get the user's stories
             stories = self.fetch_stories(user['id'])
 
-            # Downloads the user's stories and sends it to the executor.
+            # downloads the user's stories and sends it to the executor
             iter = 0
             for item in tqdm.tqdm(stories, desc='Searching {0} for stories'.format(username), unit=" media",
                                   disable=self.quiet):
@@ -836,7 +828,7 @@ class InstagramScraper(object):
         iter = 0
         for item in tqdm.tqdm(self.query_media_gen(user), desc='Searching {0} for posts'.format(username),
                               unit=' media', disable=self.quiet):
-            # -Filter command line
+            # filter command line
             if self.filter:
                 if 'tags' in item:
                     filtered = any(x in item['tags'] for x in self.filter)
@@ -845,7 +837,7 @@ class InstagramScraper(object):
                         future = executor.submit(self.worker_wrapper, self.download, item, dst)
                         future_to_item[future] = item
                 else:
-                    # For when filter is on but media doesnt contain tags
+                    # for when filter is on but media doesnt contain tags
                     pass
             # --------------#
             else:
@@ -1011,7 +1003,6 @@ class InstagramScraper(object):
 
     def download(self, item, save_dir='./'):
         """Downloads the media file."""
-        # print(self.session.proxies)
         for full_url, base_name in self.templatefilename(item):
             url = full_url.split('?')[0]  # try the static url first, stripping parameters
 
@@ -1045,11 +1036,10 @@ class InstagramScraper(object):
                                     if response.status_code == 403 and url != full_url:
                                         # see issue #254
                                         url = full_url
-                                        # self.init_session()
+                                        # return None
                                         continue
                                     response.raise_for_status()
                                     if response.status_code == 429:
-                                        #self.init_session()
                                         pass
                                     response.raise_for_status()
 
@@ -1105,11 +1095,11 @@ class InstagramScraper(object):
                                     retry = 0  # the next fail will be first in a row with no data
                                     continue
                                 if retry < MAX_RETRIES:
-                                    self.logger.warning('Retry after exception download {0} on {1}'.format(repr(e), media))
-                                    # self.init_session()
-                                    retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
-                                    retry = 0
-                                    continue
+                                    self.logger.warning('Breaking thread after exception download {0} on {1}'.format(repr(e), media))
+                                    # retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
+                                    # retry = 0
+                                    # continue
+                                    return None
                                 else:
                                     keep_trying = self._retry_prompt(media, repr(e))
                                     if keep_trying is True:
