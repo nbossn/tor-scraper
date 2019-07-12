@@ -33,7 +33,7 @@ from multiprocessing import cpu_count
 # from instagram_scraper.constants import *
 from constants import *
 from load import threading_data
-# python app.py nyc --tag -m 10 -d nyc_photos --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
+
 # python app.py nyc --tag -m 10 -d nyc_photos --media-metadata --media-types none --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
 # python app.py nyc --tag -m 10000 -d nyc_photos --media-metadata --media-types image --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
 
@@ -88,7 +88,7 @@ class PartialContentException(Exception):
 
 
 class InstagramScraper(object):
-    """InstagramScraper scrapes and downloads an instagram user's photos and videos"""
+    """Scrapes and downloads Instagram's photos and videos"""
 
     def __init__(self, **kwargs):
         default_attr = dict(username='', usernames=[], filename=None,
@@ -123,11 +123,12 @@ class InstagramScraper(object):
             parser = configparser.ConfigParser()
             parser.read(self.latest_stamps)
             self.latest_stamps_parser = parser
-            # If we have a latest_stamps file, latest must be true as it's the common flag
+            # If we have a latest_stamps file, latest must be true
             self.latest = True
 
         # Set up a logger
-        self.logger = InstagramScraper.get_logger(level=logging.DEBUG, verbose=default_attr.get('verbose'))
+        self.logger = InstagramScraper.get_logger(level=logging.DEBUG,
+                                                  verbose=default_attr.get('verbose'))
 
         self.posts = []
 
@@ -200,8 +201,8 @@ class InstagramScraper(object):
     def safe_get(self, *args, **kwargs):
         # out of the box solution
         # session.mount('https://', HTTPAdapter(max_retries=...))
-        # only covers failed DNS lookups, socket connections and connection timeouts
-        # It doesnt work when server terminate connection while response is downloaded
+        # only covers failed DNS lookups, socket connections, connection timeouts
+        # It doesnt work if server terminates connection while response is downloaded
         retry = 0
         retry_delay = RETRY_DELAY
         while True:
@@ -228,7 +229,7 @@ class InstagramScraper(object):
                     url = args[0]
                 if retry < MAX_RETRIES:
                     self.logger.warning('Retry after exception safe get {0} on {1}'.format(repr(e), url))
-                    retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
+                    retry_delay = min(2 * retry_delay, MAX_RETRY_DELAY)
                     retry = 0  # retrying infinitely
                     continue
                 else:
@@ -249,7 +250,8 @@ class InstagramScraper(object):
 
     def authenticate_as_guest(self):
         """Authenticate as a guest/non-signed in user"""
-        self.session.headers.update({'Referer': BASE_URL, 'user-agent': STORIES_UA})
+        self.session.headers.update({'Referer': BASE_URL,
+                                     'user-agent': STORIES_UA})
         req = self.session.get(BASE_URL)
 
         self.session.headers.update({'X-CSRFToken': req.cookies['csrftoken']})
@@ -295,13 +297,15 @@ class InstagramScraper(object):
     def login_challenge(self, checkpoint_url):
         self.session.headers.update({'Referer': BASE_URL})
         req = self.session.get(BASE_URL[:-1] + checkpoint_url)
-        self.session.headers.update({'X-CSRFToken': req.cookies['csrftoken'], 'X-Instagram-AJAX': '1'})
+        self.session.headers.update({'X-CSRFToken': req.cookies['csrftoken'],
+                                     'X-Instagram-AJAX': '1'})
 
         self.session.headers.update({'Referer': BASE_URL[:-1] + checkpoint_url})
         mode = int(input('Choose a challenge mode (0 - SMS, 1 - Email): '))
         challenge_data = {'choice': mode}
         challenge = self.session.post(BASE_URL[:-1] + checkpoint_url, data=challenge_data, allow_redirects=True)
-        self.session.headers.update({'X-CSRFToken': challenge.cookies['csrftoken'], 'X-Instagram-AJAX': '1'})
+        self.session.headers.update({'X-CSRFToken': challenge.cookies['csrftoken'],
+                                     'X-Instagram-AJAX': '1'})
 
         code = int(input('Enter code received: '))
         code_data = {'security_code': code}
@@ -363,7 +367,8 @@ class InstagramScraper(object):
     def get_last_scraped_timestamp(self, username):
         if self.latest_stamps_parser:
             try:
-                return self.latest_stamps_parser.getint(LATEST_STAMPS_USER_SECTION, username)
+                return self.latest_stamps_parser.getint(LATEST_STAMPS_USER_SECTION,
+                                                        username)
             except configparser.Error:
                 pass
         return 0
@@ -391,7 +396,8 @@ class InstagramScraper(object):
 
     def query_followings_gen(self, username, end_cursor=''):
         """Generator for followings."""
-        user = self.deep_get(self.get_shared_data(username), 'entry_data.ProfilePage[0].graphql.user')
+        user = self.deep_get(self.get_shared_data(username),
+                             'entry_data.ProfilePage[0].graphql.user')
         id = user['id']
         followings, end_cursor = self.__query_followings(id, end_cursor)
 
@@ -482,7 +488,9 @@ class InstagramScraper(object):
                     media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=cpu_count)
 
                 iter = 0
-                for item in tqdm.tqdm(media_generator(value), desc='Searching {0} for posts'.format(value), unit=" media",
+                for item in tqdm.tqdm(media_generator(value),
+                                      desc='Searching {0} for posts'.format(value),
+                                      unit=" media",
                                       disable=self.quiet):
                     if ((item['is_video'] is False and 'image' in self.media_types) or
                        (item['is_video'] is True and 'video' in self.media_types)) and self.is_new_media(item):
@@ -577,7 +585,7 @@ class InstagramScraper(object):
                     end_cursor = posts['page_info']['end_cursor']
                     return nodes, end_cursor
             except:
-               pass
+                pass
         return None, None
 
     def _get_nodes(self, container):
@@ -707,9 +715,11 @@ class InstagramScraper(object):
 
                     if (self.media_metadata or self.comments or self.include_location) and self.posts:
                         if self.latest:
-                            self.merge_json({'GraphImages': self.posts}, '{0}/{1}.json'.format(dst, username))
+                            self.merge_json({'GraphImages': self.posts},
+                                            '{0}/{1}.json'.format(dst, username))
                         else:
-                            self.save_json({'GraphImages': self.posts}, '{0}/{1}.json'.format(dst, username))
+                            self.save_json({'GraphImages': self.posts},
+                                           '{0}/{1}.json'.format(dst, username))
                 except ValueError:
                     self.logger.error("Unable to scrape user - %s" % username)
         finally:
@@ -828,15 +838,19 @@ class InstagramScraper(object):
             media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=cpu_count())
 
         iter = 0
-        for item in tqdm.tqdm(self.query_media_gen(user), desc='Searching {0} for posts'.format(username),
-                              unit=' media', disable=self.quiet):
+        for item in tqdm.tqdm(self.query_media_gen(user),
+                              desc='Searching {0} for posts'.format(username),
+                              unit=' media',
+                              disable=self.quiet):
             # filter command line
             if self.filter:
                 if 'tags' in item:
                     filtered = any(x in item['tags'] for x in self.filter)
                     if self.has_selected_media_types(item) and self.is_new_media(item) and filtered:
                         item['username'] = username
-                        future = executor.submit(self.worker_wrapper, self.download, item, dst)
+                        future = executor.submit(self.worker_wrapper,
+                                                 self.download,
+                                                 item, dst)
                         future_to_item[future] = item
                 else:
                     # for when filter is on but media doesnt contain tags
@@ -1006,7 +1020,7 @@ class InstagramScraper(object):
     def download(self, item, save_dir='./'):
         """Downloads the media file."""
         for full_url, base_name in self.templatefilename(item):
-            url = full_url.split('?')[0]  # try the static url first, stripping parameters
+            url = full_url.split('?')[0]  # static url first, strip params
 
             file_path = os.path.join(save_dir, base_name)
 
@@ -1044,7 +1058,6 @@ class InstagramScraper(object):
                                     if response.status_code == 429:
                                         pass
                                     response.raise_for_status()
-
                                     if response.status_code == 206:
                                         try:
                                             match = re.match(r'bytes (?P<first>\d+)-(?P<last>\d+)/(?P<size>\d+)', response.headers['Content-Range'])
@@ -1223,7 +1236,11 @@ class InstagramScraper(object):
                         output_list.update(json.load(f))
                 with open(dst, 'wb') as f:
                     output_list.update(data)
-                    json.dump(output_list, codecs.getwriter('utf-8')(f), indent=4, sort_keys=True, ensure_ascii=False)
+                    json.dump(output_list,
+                              codecs.getwriter('utf-8')(f),
+                              indent=4,
+                              sort_keys=True,
+                              ensure_ascii=False)
             except:
                 pass
 
