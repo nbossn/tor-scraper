@@ -30,7 +30,6 @@ import requests
 from tor.tor import TorControl
 import tqdm
 from multiprocessing import cpu_count
-# from instagram_scraper.constants import *
 from constants import *
 from load import threading_data
 # python app.py nyc --tag -m 10 -d nyc_photos --proxies '{"http": "http://127.0.0.1:9050"}' --retry-forever --verbose 1
@@ -140,7 +139,7 @@ class InstagramScraper(object):
 
         self.posts = []
 
-        self.torController = TorControl("127.0.0.1", 9151)
+        self.torController = TorControl("127.0.0.1", 9150)
         self.torController.authenticate("password")
 
         self.init_session()
@@ -361,6 +360,7 @@ class InstagramScraper(object):
             self.oldest_scraped_filetime = self.get_oldest_scraped_timestamp(username)
         elif os.path.isdir(dst):
             self.oldest_scraped_filetime = self.get_oldest_scraped_filetime(dst)
+
         return dst
 
     def make_dir(self, dst):
@@ -376,7 +376,7 @@ class InstagramScraper(object):
     def get_oldest_scraped_timestamp(self, username):
         if self.oldest_stamps_parser:
             try:
-                return self.latest_stamps_parser.getint(LATEST_STAMPS_USER_SECTION, username)
+                return self.oldest_stamps_parser.getint(LATEST_STAMPS_USER_SECTION, username)
             except configparser.Error:
                 pass
         return 0
@@ -396,6 +396,14 @@ class InstagramScraper(object):
             self.latest_stamps_parser.set(LATEST_STAMPS_USER_SECTION, username, str(timestamp))
             with open(self.latest_stamps, 'w') as f:
                 self.latest_stamps_parser.write(f)
+
+    def set_oldest_scraped_timestamp(self, username, timestamp):
+        if self.oldest_stamps_parser:
+            if not self.oldest_stamps_parser.has_section(LATEST_STAMPS_USER_SECTION):
+                self.oldest_stamps_parser.add_section(LATEST_STAMPS_USER_SECTION)
+            self.oldest_stamps_parser.set(LATEST_STAMPS_USER_SECTION, username, str(timestamp))
+            with open(self.oldest_stamps, 'w') as f:
+                self.oldest_stamps_parser.write(f)
 
     def get_last_scraped_filemtime(self, dst):
         """Stores the last modified time of newest file in a directory."""
@@ -494,8 +502,11 @@ class InstagramScraper(object):
             for value in self.usernames:
                 self.posts = []
                 self.last_scraped_filemtime = 0
-                self.oldest_stamps = 9999999999
-                least_timestamp = 0
+                greatest_timestamp = 0
+                
+                self.oldest_scraped_filetime = 9999999999
+                oldest_timestamp = 9999999999
+                
                 future_to_item = {}
 
                 dst = self.get_dst_dir(value)
@@ -507,7 +518,9 @@ class InstagramScraper(object):
                 for item in tqdm.tqdm(media_generator(value), desc='Searching {0} for posts'.format(value), unit=" media",
                                       disable=self.quiet):
                     if ((item['is_video'] is False and 'image' in self.media_types) or
-                       (item['is_video'] is True and 'video' in self.media_types)) and self.is_new_media(item):
+                       (item['is_video'] is True and 'video' in self.media_types))
+                       and (self.is_new_media(item) or
+                            self.__get_timestamp(item) < self.oldest_scraped_timestamp):
                         future = executor.submit(self.worker_wrapper, self.download, item, dst)
                         future_to_item[future] = item
 
@@ -532,17 +545,27 @@ class InstagramScraper(object):
 
                         if future.exception() is not None:
                             self.logger.warning(
-                                'Media for {0} at {1} generated an exception: {2}'.format(value, item['urls'],
-                                                                                          future.exception()))
+                                'Media for {0} at {1} generated an exception: {2}'.format(
+                                                                           value,
+                                                                           item['urls'],
+                                                                           future.exception()
+                                                                            ))
                         else:
                             timestamp = self.__get_timestamp(item)
                         if timestamp > greatest_timestamp:
                                 greatest_timestamp = timestamp
+                            # chronologically older
+                            if timestamp < oldest_timestamp:
+                                oldest_timestamp = timestamp
                 # Even bother saving it?
                 if greatest_timestamp > self.last_scraped_filemtime:
                     self.set_last_scraped_timestamp(value, greatest_timestamp)
 
-                if (self.media_metadata or self.comments or self.include_location) and self.posts:
+                if oldest_timestamp < self.oldest_scraped_filetime:
+                    self.set_oldest_scraped_timestamp(value, oldest_timestamp)
+
+                if (self.media_metadata or self.comments or self.include_location)
+                and self.posts:
                     if self.latest:
                         self.merge_json({'GraphImages': self.posts},
                                         '{0}/{1}.json'.format(dst, value))
