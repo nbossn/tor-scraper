@@ -96,7 +96,7 @@ class InstagramScraper(object):
                             followings_input=False, followings_output='profiles.txt',
                             destination='./', retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, profile_metadata=False, latest=False,
-                            latest_stamps=False, cookiejar=None,
+                            latest_stamps=False, oldest=False, oldest_stamps=False, cookiejar=None,
                             media_types=['image', 'video', 'story-image', 'story-video'],
                             tag=False, location=False, search_location=False, comments=False,
                             verbose=0, include_location=False, filter=None, proxies={}, no_check_certificate=False,
@@ -126,13 +126,22 @@ class InstagramScraper(object):
             # If we have a latest_stamps file, latest must be true as it's the common flag
             self.latest = True
 
+        # Read oldest_stamps file with ConfigParser
+        self.oldest_stamps_parser = None
+        if self.oldest_stamps:
+            parser2 = configparser.ConfigParser()
+            parser.read(self.oldest_stamps)
+            self.oldest_stamps_parser = parser2
+            # Assume oldest to be true if we have an oldest_stamps file
+            self.oldest = True
+
         # Set up a logger
         self.logger = InstagramScraper.get_logger(level=logging.DEBUG, verbose=default_attr.get('verbose'))
 
         self.posts = []
 
-        self.torController = TorControl("127.0.0.1", 9150)
-        self.torController.authenticate("")
+        self.torController = TorControl("127.0.0.1", 9151)
+        self.torController.authenticate("password")
 
         self.init_session()
         self.rhx_gis = ""
@@ -148,7 +157,7 @@ class InstagramScraper(object):
 
     def init_session(self):
         self.torController.new_identity()
-        self.torController.initialize(9050)
+        self.torController.initialize(9051)
         self.session = requests.Session()
 
         if self.no_check_certificate:
@@ -347,6 +356,11 @@ class InstagramScraper(object):
         elif os.path.isdir(dst):
             self.last_scraped_filemtime = self.get_last_scraped_filemtime(dst)
 
+        # Resolve the oldest scraped post
+        if self.oldest_stamps_parser:
+            self.oldest_scraped_filetime = self.get_oldest_scraped_timestamp(username)
+        elif os.path.isdir(dst):
+            self.oldest_scraped_filetime = self.get_oldest_scraped_filetime(dst)
         return dst
 
     def make_dir(self, dst):
@@ -359,6 +373,13 @@ class InstagramScraper(object):
             else:
                 # Target dir exists as a file, or a different error
                 raise
+    def get_oldest_scraped_timestamp(self, username):
+        if self.oldest_stamps_parser:
+            try:
+                return self.latest_stamps_parser.getint(LATEST_STAMPS_USER_SECTION, username)
+            except configparser.Error:
+                pass
+        return 0
 
     def get_last_scraped_timestamp(self, username):
         if self.latest_stamps_parser:
@@ -473,7 +494,8 @@ class InstagramScraper(object):
             for value in self.usernames:
                 self.posts = []
                 self.last_scraped_filemtime = 0
-                greatest_timestamp = 0
+                self.oldest_stamps = 9999999999
+                least_timestamp = 0
                 future_to_item = {}
 
                 dst = self.get_dst_dir(value)
@@ -514,7 +536,7 @@ class InstagramScraper(object):
                                                                                           future.exception()))
                         else:
                             timestamp = self.__get_timestamp(item)
-                            if timestamp > greatest_timestamp:
+                        if timestamp > greatest_timestamp:
                                 greatest_timestamp = timestamp
                 # Even bother saving it?
                 if greatest_timestamp > self.last_scraped_filemtime:
@@ -533,7 +555,7 @@ class InstagramScraper(object):
     def query_hashtag_gen(self, hashtag):
         return self.__query_gen(QUERY_HASHTAG, QUERY_HASHTAG_VARS, 'hashtag', hashtag)
 
-    def query_location_gen(self, location):
+    def query_lokcation_gen(self, location):
         return self.__query_gen(QUERY_LOCATION, QUERY_LOCATION_VARS, 'location', location)
 
     def __query_gen(self, url, variables, entity_name, query, end_cursor=''):
@@ -658,6 +680,7 @@ class InstagramScraper(object):
                 self.posts = []
                 self.last_scraped_filemtime = 0
                 greatest_timestamp = 0
+                oldest_timestamp = 0
                 future_to_item = {}
 
                 dst = self.get_dst_dir(username)
@@ -1363,6 +1386,8 @@ def main():
     parser.add_argument('--latest', action='store_true', default=False, help='Scrape new media since the last scrape')
     parser.add_argument('--latest-stamps', '--latest_stamps', default=None,
                         help='Scrape new media since timestamps by user in specified file')
+    parser.add_argument('--oldest', action='store_true', default=False, help='Scrape the old media since it crash')
+    parser.add_argument('--oldest-stamps', '--oldest_stamps', default=None, help='Scrape old media since crash based on taken_at_timestamp')
     parser.add_argument('--cookiejar', '--cookierjar', default=None,
                         help='File in which to store cookies so that they can be reused between runs.')
     parser.add_argument('--tag', action='store_true', default=False, help='Scrape media using a hashtag')
@@ -1377,7 +1402,6 @@ def main():
                         help='Retry download attempts endlessly when errors are received')
     parser.add_argument('--verbose', '-v', type=int, default=0, help='Logging verbosity level')
     parser.add_argument('--template', '-T', type=str, default='{urlname}', help='Customize filename template')
-
     args = parser.parse_args()
 
     if (args.login_user and args.login_pass is None) or (args.login_user is None and args.login_pass):
